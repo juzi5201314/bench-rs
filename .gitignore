@@ -1,3 +1,4 @@
 /target
+/bencher-macro/target
 *.lock
 .idea
