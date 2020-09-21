@@ -1,10 +1,10 @@
 # bench-rs
 
-![docs.rs](https://docs.rs/bench-rs/badge.svg)
+[![docs.rs](https://docs.rs/bench-rs/badge.svg)](https://docs.rs/bench-rs)
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/juzi5201314/bench-rs)
-![Crates.io](https://img.shields.io/crates/d/bench-rs)
+![Downloads](https://img.shields.io/crates/d/bench-rs)
 ![GitHub](https://img.shields.io/github/license/juzi5201314/bench-rs)
-![Crates.io](https://img.shields.io/crates/v/bench-rs)
+[![Crates.io](https://img.shields.io/crates/v/bench-rs)](https://crates.io/crates/bench-rs)
 
 A benchmark library.
 
