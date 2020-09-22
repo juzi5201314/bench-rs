@@ -1,6 +1,6 @@
 [package]
 name = "bench-rs"
-version = "0.1.0"
+version = "0.2.0"
 authors = ["soeur <juzi201314@gmail.com>"]
 edition = "2018"
 description = "A benchmark library"
@@ -13,9 +13,15 @@ documentation = "https://docs.rs/bench-rs"
 
 [dependencies]
 bunt = "0.2.1"
+pin-project = "0.4.23"
 bencher-macro = { version = "0.1", path = "./bencher-macro" }
 
 [dev-dependencies]
 rcnb-rs = "0.1.0"
 base64 = "0.12.3"
 rand = "0.7.3"
+tokio = { version = "0.2.22", features = ["time"] }
+smol = "1.2.1"
+futures-timer = "3.0.2"
+async-std = "1.6.4"
+futures = "0.3.5"

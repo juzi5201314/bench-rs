@@ -1,6 +1,12 @@
+use std::fmt::Debug;
+use std::future::Future;
 use std::time::Instant;
 
 pub use bencher_macro::*;
+
+use crate::timing_future::TimingFuture;
+
+mod timing_future;
 
 #[derive(Debug)]
 pub struct Bencher {
@@ -8,7 +14,8 @@ pub struct Bencher {
     count: usize,
     steps: Vec<Step>,
     pub bytes: usize,
-    n: usize
+    n: usize,
+    poll: usize,
 }
 
 impl Bencher {
@@ -18,14 +25,15 @@ impl Bencher {
             count,
             steps: Vec::with_capacity(count),
             bytes,
-            n: 0
+            n: 0,
+            poll: 0,
         }
     }
 
-    pub fn bench_once<T>(&mut self, f: &mut impl FnMut() -> T, n: usize) -> u128 {
+    pub fn bench_once<T>(&self, f: &mut impl FnMut() -> T, n: usize) -> u128 {
         let now = Instant::now();
         for _ in 0..n {
-            f();
+            let _ = f();
         }
         now.elapsed().as_nanos()
     }
@@ -34,9 +42,34 @@ impl Bencher {
         let single = self.bench_once(&mut f, 1);
         // 1_000_000ns : 1ms
         self.n = (1_000_000 / single.max(1)).max(1) as usize;
-        self.steps = (0..self.count).map(|_| Step {
+        (0..self.count).for_each(|_| self.steps.push(Step {
             time: self.bench_once(&mut f, self.n) / self.n as u128
-        }).collect()
+        }));
+    }
+
+    pub fn async_iter<'a, T, Fut: Future<Output=T>>(&'a mut self, mut f: impl FnMut() -> Fut + 'a) -> impl Future + 'a {
+        async move {
+            let single = TimingFuture::new(f()).await.elapsed_time.as_nanos();
+            // 1_000_000ns : 1ms
+            self.n = (1_000_000 / single.max(1)).max(1) as usize;
+
+            let mut polls = Vec::with_capacity(self.count);
+
+            for _ in 0..self.count {
+                let mut mtime = 0u128;
+                for _ in 0..self.n {
+                    let tf = TimingFuture::new(f()).await;
+                    mtime += tf.elapsed_time.as_nanos();
+                    polls.push(tf.poll);
+                }
+
+                self.steps.push(Step {
+                    time: mtime / self.n as u128
+                });
+            }
+
+            self.poll = polls.iter().sum::<usize>() / polls.len();
+        }
     }
 
     pub fn finish(&self) {
@@ -46,11 +79,19 @@ impl Bencher {
         let min = iter.clone().cloned().min().unwrap_or_default();
         let max = iter.clone().cloned().max().unwrap_or_default();
         bunt::println!(
-            "{$bg:white+blue+bold}{}{/$} ... {$green}{}{/$} ns/iter (+/- {$red}{}{/$}) = {$#FFA500}{:.2}{/$} MB/s @Total: {} * {} iter",
+            "{$bg:white+blue+bold}{}{/$} ... {$green}{}{/$} ns/iter (+/- {$red}{}{/$}) = {$#FFA500}{:.2}{/$} MB/s {$bold}{}@Total: {} * {} iters{/$}",
              &self.name,
              fmt_thousands_sep(average as usize, ','),
              fmt_thousands_sep((max - min) as usize, ','),
              (self.bytes as f64 * (1_000_000_000f64 / average as f64)) / 1000f64 / 1000f64,
+             if self.poll > 0 {
+                format!(
+                    "@avg {} polls",
+                    self.poll
+                 )
+             } else {
+                String::new()
+             },
              self.count,
              self.n
         );
