@@ -1,9 +1,10 @@
 use std::future::Future;
 use std::time::Instant;
 
-use crate::{GLOBAL, Stats, Step};
+use crate::{Stats, Step};
 use crate::fmt_thousands_sep;
 use crate::timing_future::TimingFuture;
+use crate::track_allocator::GLOBAL;
 
 pub struct Bencher {
     pub name: String,
@@ -88,9 +89,10 @@ impl Bencher {
 
     fn default_format(stats: &Stats, bencher: &Bencher) {
         bunt::println!(
-            "{[bg:white+blue+bold]} ... {[green]} ns/iter (+/- {[red]}) = {[#FFA500]:.2} MB/s\
-            \n\t memory usage: {[green]} bytes/iter (+/- {[red]})\
-            \n\t {$bold}{}@Total: {} * {} iters{/$}",
+            "{[bg:white+blue+bold]} ... {[green+underline]} ns/iter (+/- {[red+underline]}) = {[yellow+underline]:.2} MB/s\
+            \n\t memory usage: {[green+underline]} bytes/iter (+/- {[red+underline]})\
+            \n\t @Total: {[magenta]} * {[white]} iters\
+            {[bold]}",
              &bencher.name,
              fmt_thousands_sep(stats.times_average, ','),
              fmt_thousands_sep(stats.times_max - stats.times_min, ','),
@@ -99,16 +101,17 @@ impl Bencher {
              fmt_thousands_sep(stats.mem_average, ','),
              fmt_thousands_sep(stats.mem_max - stats.mem_min, ','),
 
+             bencher.count,
+             bencher.n,
+
              if bencher.poll > 0 {
                 format!(
-                    "@avg {} polls ",
+                    "\n\t @avg {} polls ",
                     bencher.poll
                  )
              } else {
                 String::new()
              },
-             bencher.count,
-             bencher.n
         );
     }
 }
