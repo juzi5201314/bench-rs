@@ -1,108 +1,98 @@
-use std::fmt::Debug;
-use std::future::Future;
-use std::time::Instant;
+use std::alloc::{GlobalAlloc, Layout, System};
+use std::sync::atomic::{AtomicUsize, Ordering};
 
+pub use bencher::Bencher;
 pub use bencher_macro::*;
 
-use crate::timing_future::TimingFuture;
-
 mod timing_future;
+mod bencher;
 
-#[derive(Debug)]
-pub struct Bencher {
-    name: String,
-    count: usize,
-    steps: Vec<Step>,
-    pub bytes: usize,
-    n: usize,
-    poll: usize,
+#[global_allocator]
+pub static GLOBAL: TrackAllocator<System> = TrackAllocator {
+    allocator: System,
+    counter: AtomicUsize::new(0)
+};
+
+pub struct TrackAllocator<A> where A: GlobalAlloc {
+    allocator: A,
+    counter: AtomicUsize
 }
 
-impl Bencher {
-    pub fn new(name: impl AsRef<str>, count: usize, bytes: usize) -> Self {
-        Bencher {
-            name: name.as_ref().to_owned(),
-            count,
-            steps: Vec::with_capacity(count),
-            bytes,
-            n: 0,
-            poll: 0,
+impl<A> TrackAllocator<A> where A: GlobalAlloc {
+    pub fn reset(&self) {
+        self.counter.store(0, Ordering::SeqCst)
+    }
+
+    pub fn get(&self) -> usize {
+        self.counter.load(Ordering::SeqCst)
+    }
+}
+
+unsafe impl<A> GlobalAlloc for TrackAllocator<A> where A: GlobalAlloc {
+    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
+        let ret = self.allocator.alloc(layout);
+        if !ret.is_null() {
+            self.counter.fetch_add(layout.size(), Ordering::SeqCst);
         }
+        ret
     }
 
-    pub fn bench_once<T>(&self, f: &mut impl FnMut() -> T, n: usize) -> u128 {
-        let now = Instant::now();
-        for _ in 0..n {
-            let _ = f();
+    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
+        self.allocator.dealloc(ptr, layout);
+    }
+
+    unsafe fn alloc_zeroed(&self, layout: Layout) -> *mut u8 {
+        self.counter.fetch_add(layout.size(), Ordering::SeqCst);
+        self.allocator.alloc_zeroed(layout)
+    }
+
+    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
+        if new_size > layout.size() {
+            self.counter.fetch_add(new_size - layout.size(), Ordering::SeqCst);
+        } else if new_size < layout.size() {
+            self.counter.fetch_sub(layout.size() - new_size, Ordering::SeqCst);
         }
-        now.elapsed().as_nanos()
+        self.allocator.realloc(ptr, layout, new_size)
     }
+}
 
-    pub fn iter<T>(&mut self, mut f: impl FnMut() -> T) {
-        let single = self.bench_once(&mut f, 1);
-        // 1_000_000ns : 1ms
-        self.n = (1_000_000 / single.max(1)).max(1) as usize;
-        (0..self.count).for_each(|_| self.steps.push(Step {
-            time: self.bench_once(&mut f, self.n) / self.n as u128
-        }));
-    }
+#[derive(Debug)]
+pub struct Stats {
+    pub times_average: usize,
+    pub times_min: usize,
+    pub times_max: usize,
 
-    pub fn async_iter<'a, T, Fut: Future<Output=T>>(&'a mut self, mut f: impl FnMut() -> Fut + 'a) -> impl Future + 'a {
-        async move {
-            let single = TimingFuture::new(f()).await.elapsed_time.as_nanos();
-            // 1_000_000ns : 1ms
-            self.n = (1_000_000 / single.max(1)).max(1) as usize;
-
-            let mut polls = Vec::with_capacity(self.count);
-
-            for _ in 0..self.count {
-                let mut mtime = 0u128;
-                for _ in 0..self.n {
-                    let tf = TimingFuture::new(f()).await;
-                    mtime += tf.elapsed_time.as_nanos();
-                    polls.push(tf.poll);
-                }
-
-                self.steps.push(Step {
-                    time: mtime / self.n as u128
-                });
-            }
-
-            self.poll = polls.iter().sum::<usize>() / polls.len();
-        }
-    }
-
-    pub fn finish(&self) {
-        let times = self.steps.iter().map(|step| step.time).collect::<Vec<u128>>();
-        let iter = times.iter();
-        let average = iter.clone().sum::<u128>() / self.count as u128;
-        let min = iter.clone().cloned().min().unwrap_or_default();
-        let max = iter.clone().cloned().max().unwrap_or_default();
-        bunt::println!(
-            "{$bg:white+blue+bold}{}{/$} ... {$green}{}{/$} ns/iter (+/- {$red}{}{/$}) = {$#FFA500}{:.2}{/$} MB/s {$bold}{}@Total: {} * {} iters{/$}",
-             &self.name,
-             fmt_thousands_sep(average as usize, ','),
-             fmt_thousands_sep((max - min) as usize, ','),
-             (self.bytes as f64 * (1_000_000_000f64 / average as f64)) / 1000f64 / 1000f64,
-             if self.poll > 0 {
-                format!(
-                    "@avg {} polls",
-                    self.poll
-                 )
-             } else {
-                String::new()
-             },
-             self.count,
-             self.n
-        );
-    }
+    pub mem_average: usize,
+    pub mem_min: usize,
+    pub mem_max: usize,
 }
 
 #[derive(Debug)]
 pub struct Step {
-    time: u128
+    time: u128,
+    mem: usize
 }
 
+impl From<&Vec<Step>> for Stats {
+    fn from(steps: &Vec<Step>) -> Self {
+        let count = steps.len();
+
+        let times = steps.iter().map(|step| step.time).collect::<Vec<u128>>();
+        let times_iter = times.iter();
+
+        let mem = steps.iter().map(|step| step.mem).collect::<Vec<usize>>();
+        let mem_iter = mem.iter();
+
+        Stats {
+            times_average: (times_iter.clone().sum::<u128>() / count as u128) as usize,
+            times_min: times_iter.clone().cloned().min().unwrap_or_default() as usize,
+            times_max: times_iter.clone().cloned().max().unwrap_or_default() as usize,
+            mem_average: mem_iter.clone().sum::<usize>() / count,
+            mem_min: mem_iter.clone().cloned().min().unwrap_or_default(),
+            mem_max: mem_iter.clone().cloned().max().unwrap_or_default()
+        }
+    }
+}
 // Format a number with thousands separators
 fn fmt_thousands_sep(mut n: usize, sep: char) -> String {
     use std::fmt::Write;

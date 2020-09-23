@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use rand::Rng;
 
-use bench_rs::bench;
+use bench_rs::{bench, Stats};
 use bench_rs::Bencher;
 
 #[test]
@@ -13,6 +13,12 @@ fn test_bencher() {
     bencher.iter(|| {
         let _ = rcnb_rs::encode(&data);
     });
+
+    // Custom formatting
+    bencher.format_fn = |stats: &Stats, b: &Bencher| {
+        println!("{}: custom formatting: {:?}\n", &b.name, stats)
+    };
+
     bencher.finish();
 }
 
