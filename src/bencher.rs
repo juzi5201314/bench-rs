@@ -88,8 +88,8 @@ impl Bencher {
 
     fn default_format(stats: &Stats, bencher: &Bencher) {
         bunt::println!(
-            "{$bg:white+blue+bold}{}{/$} ... {$green}{}{/$} ns/iter (+/- {$red}{}{/$}) = {$#FFA500}{:.2}{/$} MB/s\
-            \n\t memory usage: {$green}{}{/$} bytes/iter (+/- {$red}{}{/$})\
+            "{[bg:white+blue+bold]} ... {[green]} ns/iter (+/- {[red]}) = {[#FFA500]:.2} MB/s\
+            \n\t memory usage: {[green]} bytes/iter (+/- {[red]})\
             \n\t {$bold}{}@Total: {} * {} iters{/$}",
              &bencher.name,
              fmt_thousands_sep(stats.times_average, ','),
