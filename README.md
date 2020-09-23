@@ -1,5 +1,6 @@
 # bench-rs
 
+![Rust](https://github.com/juzi5201314/bench-rs/workflows/Rust/badge.svg)
 [![docs.rs](https://docs.rs/bench-rs/badge.svg)](https://docs.rs/bench-rs)
 ![GitHub code size in bytes](https://img.shields.io/github/languages/code-size/juzi5201314/bench-rs)
 ![Downloads](https://img.shields.io/crates/d/bench-rs)
@@ -23,7 +24,7 @@ $ cargo test --release --color=always -q --package bench-rs --test bench --no-fa
 ```
 Look `./tests/bench.rs`
 
-![image.png](https://i.loli.net/2020/09/23/eut6xUGAcpm7IYj.png)
+![image.png](https://i.loli.net/2020/09/23/RsCfvr4OIVyj9Lc.png)
 
 ### black_box
 I don't know how to implement the black box.
