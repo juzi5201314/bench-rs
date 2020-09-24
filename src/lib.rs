@@ -1,9 +1,21 @@
 pub use bencher::Bencher;
 pub use bencher_macro::*;
+pub use track_allocator::TrackAllocator;
 
 mod timing_future;
 mod bencher;
 mod track_allocator;
+
+#[macro_export]
+macro_rules! new_allocator {
+    ($allocator:expr) => {
+        TrackAllocator {
+            allocator: $allocator,
+            counter: std::sync::atomic::AtomicUsize::new(0),
+            peak: std::sync::atomic::AtomicUsize::new(0)
+        };
+    };
+}
 
 #[derive(Debug)]
 pub struct Stats {

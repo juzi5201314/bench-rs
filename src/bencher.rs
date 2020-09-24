@@ -5,6 +5,7 @@ use std::time::Instant;
 use crate::{Stats, Step};
 use crate::fmt_thousands_sep;
 use crate::timing_future::TimingFuture;
+#[cfg(feature = "track-allocator")]
 use crate::track_allocator::GLOBAL;
 
 pub struct Bencher {
@@ -20,6 +21,7 @@ pub struct Bencher {
 }
 
 impl Bencher {
+    #[cfg(feature = "track-allocator")]
     pub fn new(name: impl AsRef<str>, count: usize, bytes: usize) -> Self {
         Bencher {
             name: name.as_ref().to_owned(),
@@ -31,6 +33,21 @@ impl Bencher {
             format_fn: |s, b| Self::default_format(s, b),
 
             mem_track: (GLOBAL.counter(), GLOBAL.peak())
+        }
+    }
+
+    #[cfg(not(feature = "track-allocator"))]
+    pub fn new(name: impl AsRef<str>, count: usize, bytes: usize, counter: &'static AtomicUsize, peak: &'static AtomicUsize) -> Self {
+        Bencher {
+            name: name.as_ref().to_owned(),
+            count,
+            steps: Vec::with_capacity(count),
+            bytes,
+            n: 0,
+            poll: 0,
+            format_fn: |s, b| Self::default_format(s, b),
+
+            mem_track: (counter, peak)
         }
     }
 

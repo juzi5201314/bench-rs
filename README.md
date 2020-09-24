@@ -16,7 +16,7 @@ A benchmark library.
 - [x] Memory usage
 - [x] Custom formatting
 - [ ] Intuitive numerical units
-- [ ] Support custom memory allocator
+- [x] Support custom memory allocator
 
 ### Examples
 ```
@@ -36,32 +36,41 @@ If you have a better idea, welcome to submit a pull request or open an issue
 ### global_allocator
 In order to detect Memory usage, `bench-rs` modified global_allocator.
 This will make it impossible to use other allocators.
-If you need to use other allocators, you can use Conditional compilation (features) to circumvent this problem.
+If you need to use other allocator: 
 
-E.g:
 
-Add `#[cfg(not(feature = "test"))]` to your allocator:
+Change your allocator: (if your allocator is `std::alloc::System`)
 ```
-#[cfg(not(feature = "test"))]
+use std::alloc::System;
+use bench_rs::{TrackAllocator, new_allocator};
+
 #[global_allocator]
-pub static GLOBAL: System = System;
+pub static GLOBAL: TrackAllocator<System> = new_allocator!(System);
 ```
 
-Add `test` feature to Cargo.toml:
+Turn off default features:
 ```
-[features]
-test = []
+[dependencies]
+bench-rs = { version = "*", default-features = false }
 ```
 
-Use `--features=test`:
+Import the allocator named `GLOBAL`:
+```
+use bench_rs::bench;
+use yourlib::GLOBAL;
 
-`cargo test --features=test ...`
+#[bench]
+fn ...
+```
+If your allocator name is not `GLOBAL`, please set its alias to `GLOBAL`:
 
+`use yourlib::OtherAllocator as GLOBAL`
 
-> Custom dispenser? Stay tuned. 
->
-> Contributions welcome
+Because the bencher-macro will look for `GLOBAL.counter()` and `GLOBAL.peak()` 
+at the same level of the bench function.
 
 ---
 
 > I am a rust beginner, please correct me if the code is bad. Thank you
+>
+> Contributions welcome

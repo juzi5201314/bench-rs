@@ -1,6 +1,6 @@
 [package]
 name = "bench-rs"
-version = "0.2.2"
+version = "0.2.3"
 authors = ["soeur <juzi201314@gmail.com>"]
 edition = "2018"
 description = "A benchmark library"
@@ -15,6 +15,10 @@ documentation = "https://docs.rs/bench-rs"
 bunt = "0.2.1"
 pin-project = "0.4.23"
 bencher-macro = { version = "0.1", path = "./bencher-macro" }
+
+[features]
+default = ["track-allocator"]
+track-allocator = ["bencher-macro/track-allocator"]
 
 [dev-dependencies]
 rcnb-rs = "0.1.0"

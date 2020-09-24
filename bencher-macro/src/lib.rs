@@ -34,13 +34,23 @@ pub fn bench(attrs: proc_macro::TokenStream, item: proc_macro::TokenStream) -> p
         TokenStream::from_str("#[test]").unwrap()
     };
 
+    let bencher = if cfg!(feature = "track-allocator") {
+        quote! {
+            Bencher::new(#name, #count, 0)
+        }
+    } else {
+        quote! {
+            Bencher::new(#name, #count, 0, GLOBAL.counter(), GLOBAL.peak())
+        }
+    };
+
     (quote! {
         #test
         #(#func_attrs)*
         fn #func_name() {
             #func
 
-            let mut bencher = Bencher::new(#name, #count, 0);
+            let mut bencher = #bencher;
             #func_name(&mut bencher);
             bencher.finish();
         }

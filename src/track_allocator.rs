@@ -1,22 +1,21 @@
-use std::alloc::{GlobalAlloc, Layout, System};
+use std::alloc::{GlobalAlloc, Layout};
 use std::sync::atomic::{AtomicUsize, Ordering};
 
+#[cfg(feature = "track-allocator")]
 #[global_allocator]
-pub static GLOBAL: TrackAllocator<System> = TrackAllocator {
-    allocator: System,
+pub static GLOBAL: TrackAllocator<std::alloc::System> = TrackAllocator {
+    allocator: std::alloc::System,
     counter: AtomicUsize::new(0),
     peak: AtomicUsize::new(0)
 };
 
-
 pub struct TrackAllocator<A> where A: GlobalAlloc {
-    allocator: A,
-    counter: AtomicUsize,
-    peak: AtomicUsize
+    pub allocator: A,
+    pub counter: AtomicUsize,
+    pub peak: AtomicUsize
 }
 
 impl<A> TrackAllocator<A> where A: GlobalAlloc {
-    #[allow(dead_code)]
     pub fn get(&self) -> usize {
         self.counter.load(Ordering::SeqCst)
     }
