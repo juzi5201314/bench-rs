@@ -1,4 +1,5 @@
 use std::future::Future;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
 use crate::{Stats, Step};
@@ -14,6 +15,8 @@ pub struct Bencher {
     pub n: usize,
     pub poll: usize,
     pub format_fn: fn(&Stats, &Bencher),
+
+    pub mem_track: (&'static AtomicUsize, &'static AtomicUsize)
 }
 
 impl Bencher {
@@ -25,20 +28,22 @@ impl Bencher {
             bytes,
             n: 0,
             poll: 0,
-            format_fn: |s, b| Self::default_format(s, b)
+            format_fn: |s, b| Self::default_format(s, b),
+
+            mem_track: (GLOBAL.counter(), GLOBAL.peak())
         }
     }
 
     // (time, memory_usage)
     pub fn bench_once<T>(&self, f: &mut impl FnMut() -> T, n: usize) -> (u128, usize) {
         let now = Instant::now();
-        GLOBAL.reset();
+        self.reset_mem();
 
         for _ in 0..n {
             let _output = f();
         }
 
-        (now.elapsed().as_nanos(), GLOBAL.get())
+        (now.elapsed().as_nanos(), self.get_mem_peak())
     }
 
     pub fn iter<T>(&mut self, mut f: impl FnMut() -> T) {
@@ -64,7 +69,7 @@ impl Bencher {
 
             for _ in 0..self.count {
                 let mut mtime = 0u128;
-                GLOBAL.reset();
+                self.reset_mem();
                 
                 for _ in 0..self.n {
                     let tf = TimingFuture::new(f()).await;
@@ -74,7 +79,7 @@ impl Bencher {
 
                 self.steps.push(Step {
                     time: mtime / self.n as u128,
-                    mem: GLOBAL.get() / self.n
+                    mem: self.get_mem_peak() / self.n
                 });
             }
 
@@ -85,6 +90,15 @@ impl Bencher {
     pub fn finish(&self) {
         let stats = Stats::from(&self.steps);
         (self.format_fn)(&stats, self)
+    }
+
+    pub fn reset_mem(&self) {
+        self.mem_track.0.store(0, Ordering::SeqCst);
+        self.mem_track.1.store(0, Ordering::SeqCst);
+    }
+
+    pub fn get_mem_peak(&self) -> usize {
+        self.mem_track.1.load(Ordering::SeqCst)
     }
 
     fn default_format(stats: &Stats, bencher: &Bencher) {
