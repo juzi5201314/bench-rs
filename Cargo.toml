@@ -1,6 +1,6 @@
 [package]
 name = "bench-rs"
-version = "0.2.3"
+version = "0.2.4"
 authors = ["soeur <juzi201314@gmail.com>"]
 edition = "2018"
 description = "A benchmark library"
@@ -14,6 +14,7 @@ documentation = "https://docs.rs/bench-rs"
 [dependencies]
 bunt = "0.2.1"
 pin-project = "0.4.23"
+serde = { version = "1.0.116", features = ["derive"] }
 bencher-macro = { version = "0.1", path = "./bencher-macro" }
 
 [features]

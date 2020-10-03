@@ -1,3 +1,5 @@
+use serde::{Serialize, Deserialize};
+
 pub use bencher::Bencher;
 pub use bencher_macro::*;
 pub use track_allocator::TrackAllocator;
@@ -17,7 +19,7 @@ macro_rules! new_allocator {
     };
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Stats {
     pub times_average: usize,
     pub times_min: usize,
@@ -28,7 +30,7 @@ pub struct Stats {
     pub mem_max: usize,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct Step {
     time: u128,
     mem: usize
